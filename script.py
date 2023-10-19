@@ -1,10 +1,10 @@
 import os
+import json
 from PIL import Image, ImageTk, ExifTags
 import tkinter as tk
 from tkinter import filedialog, messagebox, Toplevel, Label, Button
 from tkinter.ttk import Progressbar
 from ttkthemes import ThemedTk
-from tqdm import tqdm
 import logging
 import tkinter.scrolledtext as ScrolledText
 
@@ -82,16 +82,25 @@ def select_resolution(image_name, img_path, resolutions):
 
     return selected_resolution
 
-def batch_processing_choice():
-    root = tk.Tk()
-    root.withdraw()
-    return messagebox.askyesno("Batch Processing", "Do you want to batch process all images with automatically determined resolutions? If No, you'll select resolutions for each image manually.")
+def save_last_selected_dirs(input_dir, output_dir):
+    with open('config.json', 'w') as f:
+        json.dump({'input_dir': input_dir, 'output_dir': output_dir}, f)
 
-def update_directory_path(label, title):
-    dir_path = filedialog.askdirectory(title=title) 
+def get_last_selected_dirs():
+    try:
+        with open('config.json', 'r') as f:
+            dirs = json.load(f)
+            return dirs['input_dir'], dirs['output_dir']
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return None, None
+
+def update_directory_path(label, title, input_label, output_label):
+    dir_path = filedialog.askdirectory(title=title)
     if dir_path:
-        label.config(text=f'{title}: {dir_path}')
+        label.config(text=dir_path)
+        save_last_selected_dirs(input_label.cget("text"), output_label.cget("text"))
     return dir_path
+
 
 def print_to_terminal(terminal, message):
     terminal.config(state='normal')
@@ -106,7 +115,7 @@ def print_to_terminal(terminal, message):
     terminal.config(state='disabled')
     terminal.see(tk.END)
 
-def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress):  # Added file_progress argument
+def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, use_recommended_dimensions):
     os.makedirs(output_dir, exist_ok=True)
     files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
     total_files = len(files)
@@ -136,11 +145,11 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
                 resized_img.save(output_path, 'WEBP')
                 processed_files += 1  
                 progress['value'] = (processed_files / total_files) * 100
-                file_progress['value'] = 0  #
-                message = f'{file} processed successfully.'
+                file_progress['value'] = 0
+                message = f'{file} ({img.width}x{img.height}) converted to ({resized_img.width}x{resized_img.height}) processed successfully.'
                 print(message)
                 print_to_terminal(terminal, message)
-                file_progress['value'] = 100  
+                file_progress['value'] = 100
         except IOError as e:
             error_message = f'Error processing {file}: {e}'
             print(error_message)
@@ -148,22 +157,17 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
             logging.error(error_message)
             file_progress['value'] = 100
 
-def get_directory_path(prompt):
-    root = tk.Tk()
-    root.withdraw()
-    dir_path = filedialog.askdirectory(title=prompt)
-    return dir_path
-
-def on_convert_click(input_label, output_label, terminal, progress, file_progress):
-    input_dir = update_directory_path(input_label, 'Select Input Directory')
-    output_dir = update_directory_path(output_label, 'Select Output Directory')
+def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice):
+    input_dir = input_label.cget("text")
+    output_dir = output_label.cget("text")
+    batch_mode = resolution_choice.get() == "Automatically"
 
     if input_dir and output_dir:
-        batch_mode = batch_processing_choice()
+        batch_mode = resolution_choice.get() == "Automatically"
         try:
             progress['value'] = 0  
             file_progress['value'] = 0
-            convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress)
+            convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get())
         except Exception as e:
             error_message = f'An error occurred: {e}'
             print_to_terminal(terminal, error_message)
@@ -177,15 +181,27 @@ def initialize_gui():
     root = ThemedTk(theme="equilux")
     root.title("Image Converter")
 
-    input_label = tk.Button(root, text='Input Directory: Not selected', font=("Helvetica", 12), anchor='w',
-                            command=lambda: update_directory_path(input_label, 'Input Directory'))  # Changed Label to Button
-    input_label.pack(fill='x', padx=5, pady=5)
+    input_frame = tk.Frame(root)
+    input_frame.pack(fill='x', padx=5, pady=5)
+    input_button = tk.Button(input_frame, text='Input Directory', command=lambda: update_directory_path(input_label, 'Input Directory', input_label, output_label))
+    input_button.pack(side='left')
+    input_label = tk.Label(input_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
+    input_label.pack(fill='x', expand=True)
 
-    output_label = tk.Button(root, text='Output Directory: Not selected', font=("Helvetica", 12), anchor='w',
-                             command=lambda: update_directory_path(output_label, 'Output Directory'))  # Changed Label to Button
-    output_label.pack(fill='x', padx=5, pady=5)
+    output_frame = tk.Frame(root)
+    output_frame.pack(fill='x', padx=5, pady=5)
+    output_button = tk.Button(output_frame, text='Output Directory', command=lambda: update_directory_path(output_label, 'Output Directory', input_label, output_label))
+    output_button.pack(side='left')
+    output_label = tk.Label(output_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
+    output_label.pack(fill='x', expand=True)
 
-    convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress))
+    resolution_choice = tk.StringVar(value="Automatically")
+    auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically")
+    auto_radio.pack(anchor='w', padx=20)
+    custom_radio = tk.Radiobutton(root, text="Specify dimensions", variable=resolution_choice, value="Custom")
+    custom_radio.pack(anchor='w', padx=20)
+
+    convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice))
     convert_button.pack(pady=10)
 
     terminal = ScrolledText.ScrolledText(root, state='disabled', width=80, height=20, wrap='word', fg='white', bg='black')
@@ -197,9 +213,15 @@ def initialize_gui():
     file_progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
     file_progress.pack(pady=5)
 
+    # Load last selected directories
+    input_dir, output_dir = get_last_selected_dirs()
+    if input_dir and output_dir:
+        input_label.config(text=input_dir)
+        output_label.config(text=output_dir)
+
     root.mainloop()
 
 
 if __name__ == '__main__':
     setup_logging()
-    initialize_gui() 
+    initialize_gui()
