@@ -1,9 +1,13 @@
 import os
 from PIL import Image, ImageTk, ExifTags
 import tkinter as tk
-from tkinter import filedialog, simpledialog, messagebox, Toplevel, Label, Button
+from tkinter import filedialog, messagebox, Toplevel, Label, Button
+from tkinter.ttk import Progressbar
+from ttkthemes import ThemedTk
 from tqdm import tqdm
 import logging
+import tkinter.scrolledtext as ScrolledText
+
 
 def setup_logging():
     logging.basicConfig(filename='errors.log', level=logging.ERROR, 
@@ -83,34 +87,66 @@ def batch_processing_choice():
     root.withdraw()
     return messagebox.askyesno("Batch Processing", "Do you want to batch process all images with automatically determined resolutions? If No, you'll select resolutions for each image manually.")
 
-def convert_and_resize_images(input_dir, output_dir, batch_mode):
+def update_directory_path(label, title):
+    dir_path = filedialog.askdirectory(title=title) 
+    if dir_path:
+        label.config(text=f'{title}: {dir_path}')
+    return dir_path
+
+def print_to_terminal(terminal, message):
+    terminal.config(state='normal')
+    tag = None
+    if "successfully" in message:
+        tag = "Success"
+        terminal.tag_config(tag, foreground='green')
+    elif "Error" in message or "error" in message:
+        tag = "Error"
+        terminal.tag_config(tag, foreground='red')
+    terminal.insert(tk.END, message + '\n', tag)
+    terminal.config(state='disabled')
+    terminal.see(tk.END)
+
+def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress):  # Added file_progress argument
     os.makedirs(output_dir, exist_ok=True)
     files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
+    total_files = len(files)
+    processed_files = 0
 
-    for file in tqdm(files, desc='Processing images'):
+    for file in files:
         input_path = os.path.join(input_dir, file)
         output_path = os.path.join(output_dir, os.path.splitext(file)[0] + '.webp')
 
         try:
             with Image.open(input_path) as img:
-                img = correct_image_orientation(img)  # Correct orientation before any other operations
+                img = correct_image_orientation(img)  
 
                 if not batch_mode:
                     resolutions = get_optimal_resolutions(img.size)
                     chosen_resolution = select_resolution(file, input_path, resolutions)
                     if chosen_resolution == 'SKIP':
-                        print(f"{file} was skipped by the user.")
+                        message = f"{file} was skipped by the user."
+                        print(message)
+                        print_to_terminal(terminal, message)
+                        file_progress['value'] = 100  
                         continue
                 else:
                     chosen_resolution = get_optimal_resolutions(img.size)[0]
 
                 resized_img = img.resize(chosen_resolution, Image.LANCZOS)
                 resized_img.save(output_path, 'WEBP')
-                print(f'{file} processed successfully.')
-        except Exception as e:
+                processed_files += 1  
+                progress['value'] = (processed_files / total_files) * 100
+                file_progress['value'] = 0  #
+                message = f'{file} processed successfully.'
+                print(message)
+                print_to_terminal(terminal, message)
+                file_progress['value'] = 100  
+        except IOError as e:
             error_message = f'Error processing {file}: {e}'
             print(error_message)
+            print_to_terminal(terminal, error_message)
             logging.error(error_message)
+            file_progress['value'] = 100
 
 def get_directory_path(prompt):
     root = tk.Tk()
@@ -118,20 +154,52 @@ def get_directory_path(prompt):
     dir_path = filedialog.askdirectory(title=prompt)
     return dir_path
 
-if __name__ == '__main__':
-    setup_logging()
-    input_dir = get_directory_path('Select Input Directory')
-    output_dir = get_directory_path('Select Output Directory')
+def on_convert_click(input_label, output_label, terminal, progress, file_progress):
+    input_dir = update_directory_path(input_label, 'Select Input Directory')
+    output_dir = update_directory_path(output_label, 'Select Output Directory')
 
     if input_dir and output_dir:
         batch_mode = batch_processing_choice()
         try:
-            convert_and_resize_images(input_dir, output_dir, batch_mode)
+            progress['value'] = 0  
+            file_progress['value'] = 0
+            convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress)
         except Exception as e:
             error_message = f'An error occurred: {e}'
-            print(error_message)
+            print_to_terminal(terminal, error_message)
             logging.error(error_message)
     else:
         error_message = 'No directory selected. Exiting.'
-        print(error_message)
+        print_to_terminal(terminal, error_message)
         logging.error(error_message)
+
+def initialize_gui():
+    root = ThemedTk(theme="equilux")
+    root.title("Image Converter")
+
+    input_label = tk.Button(root, text='Input Directory: Not selected', font=("Helvetica", 12), anchor='w',
+                            command=lambda: update_directory_path(input_label, 'Input Directory'))  # Changed Label to Button
+    input_label.pack(fill='x', padx=5, pady=5)
+
+    output_label = tk.Button(root, text='Output Directory: Not selected', font=("Helvetica", 12), anchor='w',
+                             command=lambda: update_directory_path(output_label, 'Output Directory'))  # Changed Label to Button
+    output_label.pack(fill='x', padx=5, pady=5)
+
+    convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress))
+    convert_button.pack(pady=10)
+
+    terminal = ScrolledText.ScrolledText(root, state='disabled', width=80, height=20, wrap='word', fg='white', bg='black')
+    terminal.pack()
+
+    progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
+    progress.pack(pady=5)
+
+    file_progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
+    file_progress.pack(pady=5)
+
+    root.mainloop()
+
+
+if __name__ == '__main__':
+    setup_logging()
+    initialize_gui() 
