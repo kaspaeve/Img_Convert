@@ -1,0 +1,10 @@
+version: '3'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 'github/kaspaeve/Img_Convert.git'
+    volumes:
+      - .:/app
