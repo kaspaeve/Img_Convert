@@ -1,49 +1,28 @@
 # Image Conversion and Resizing Script
 
-This Python script converts `.jpg` images to `.webp` format and resizes them to 1440x1920 pixels. It also includes error handling and logs any errors to a file named `errors.log`. A progress bar and processing status are displayed in the terminal as images are processed.
+This Python script allows users to convert images from `.jpg` to `.webp` format and resize them either to recommended dimensions or to custom dimensions specified by the user. The script provides a user-friendly GUI for selecting input and output directories, specifying resolution preferences, and initiating the conversion process. Progress bars and a terminal are integrated within the GUI to provide real-time feedback on the conversion process. Additionally, the script handles errors gracefully, logging any exceptions to a file named `errors.log` for further investigation.
 
 ## Dependencies
 
-- Pillow
-- tqdm
-- tkinter
-
-## Usage
-
-Follow these steps to use the script:
-
-1. **Install Required Library:**
-    Before running the script, ensure you have Pillow installed:
-    ```bash
-    pip install Pillow
-    ```
-    
-2. **Install tqdm Library:**
-    This script also requires the tqdm library to display a progress bar:
-    ```bash
-    pip install tqdm
-    ```
-
-3. **Run the script:**
-    ```bash
-    python script.py
-    ```
-
-4. **Select Directories:**
-   When you run the script, a dialog will pop up asking you to select the input directory (where your .jpg files are located) and then the output directory (where you want the .webp files to be saved).
-
-5. **Check the Log:**
-   If there are any errors during the process, they will be logged to `errors.log` in the directory from which you ran the script.
-
-6. **Output:**
-   The script will process each .jpg image in the input directory, convert it to .webp, resize it to 1440x1920, and save it in the output directory. It will not process images in subdirectories of the input directory.
-
-Note: This script only processes .jpg files and does not process images in subdirectories.
+- Pillow (for image processing tasks)
+- tkinter (to create the GUI)
+- ttkthemes (to theme the tkinter GUI)
+- ScrolledText (for the terminal widget within the GUI)
 
 ## Features
 
-- Converts .jpg images to .webp format.
-- Resizes images to 1440x1920 pixels.
-- Provides a progress bar to track the process.
-- Logs errors to an `errors.log` file.
+- User-friendly GUI for easy operation.
+- Option to select recommended or custom image dimensions.
+- Real-time feedback through progress bars and a terminal.
+- Error handling with logging to a file for troubleshooting.
+- Icons and a polished theme for a professional look and feel.
 
+## Usage
+
+1. Launch the script.
+2. Select input and output directories using the provided buttons.
+3. Choose either recommended dimensions or specify custom dimensions for resizing.
+4. Click the "Convert" button to start the conversion process.
+5. Monitor the progress on the progress bars and in the terminal.
+
+The script is designed to be intuitive and user-friendly, making image conversion and resizing a breeze.
