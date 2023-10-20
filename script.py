@@ -3,7 +3,7 @@ import json
 from PIL import Image, ImageTk, ExifTags
 import tkinter as tk
 from tkinter import filedialog, messagebox, Toplevel, Label, Button, Menu
-from tkinter.ttk import Progressbar, Separator, Frame
+from tkinter.ttk import Frame, Progressbar, Separator 
 from ttkthemes import ThemedTk
 import logging
 import tkinter.scrolledtext as ScrolledText
@@ -195,10 +195,10 @@ def initialize_gui():
     menu.add_cascade(label="Help", menu=help_menu)
     root.config(menu=menu)
 
-    main_frame = Frame(root, padding="10")
+    main_frame = Frame(root, padding="10") 
     main_frame.grid(sticky=(tk.E, tk.W, tk.N, tk.S), padx=10, pady=10)
 
-    input_frame = Frame(main_frame)
+    input_frame = Frame(main_frame) 
     input_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
 
     input_button = tk.Button(input_frame, text='Input Directory', command=lambda: update_directory_path(input_label, 'Input Directory', input_label, output_label))
@@ -207,8 +207,8 @@ def initialize_gui():
     input_label = tk.Label(input_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
     input_label.grid(row=0, column=1, sticky='ew')  
 
-    output_frame = tk.Frame(root)
-    output_frame.grid(row=1, column=0, sticky='ew', padx=5, pady=5)  
+    output_frame = Frame(root)  
+    output_frame.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
 
     output_button = tk.Button(output_frame, text='Output Directory', command=lambda: update_directory_path(output_label, 'Output Directory', input_label, output_label))
     output_button.grid(row=0, column=0) 
