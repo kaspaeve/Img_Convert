@@ -276,6 +276,9 @@ def initialize_gui():
         output_label.config(text=output_dir)
     resolution_choice.trace_add('write', lambda *args: update_entry_visibility(resolution_choice, dimension_frame))
 
+    doc_icon = ImageTk.PhotoImage(Image.open('icons/document_icon.png'))
+    help_menu.entryconfig('Documentation', image=doc_icon, compound=tk.LEFT)
+
     root.mainloop()
 
 def open_documentation():
