@@ -178,8 +178,8 @@ def on_convert_click(input_label, output_label, terminal, progress, file_progres
 
 def update_entry_visibility(resolution_choice, width_entry, height_entry):
     if resolution_choice.get() == "Custom":
-        width_entry.grid(row=3, column=2, padx=5, pady=5)  
-        height_entry.grid(row=3, column=4, padx=5, pady=5)  
+        width_entry.grid(row=4, column=1, sticky='w', padx=5, pady=5)  
+        height_entry.grid(row=5, column=1, sticky='w', padx=5, pady=5)  
     else:
         width_entry.grid_remove()
         height_entry.grid_remove()
@@ -216,33 +216,34 @@ def initialize_gui():
                                   command=lambda: update_entry_visibility(resolution_choice, width_entry, height_entry))
     custom_radio.grid(row=3, column=0, sticky='w', padx=20)
 
-    width_label = tk.Label(root, text="Width:")  
-    width_label.grid(row=3, column=1, sticky='e', padx=5, pady=5)
+    width_label = tk.Label(root, text="Width:")
+    width_label.grid(row=4, column=0, sticky='w', padx=5, pady=5)
 
     width_entry = tk.Entry(root)
-    width_entry.grid(row=3, column=2, padx=5, pady=5)  
+    width_entry.grid(row=4, column=1, sticky='w', padx=5, pady=5)  
 
-    height_label = tk.Label(root, text="Height:")  
-    height_label.grid(row=3, column=3, sticky='e', padx=5, pady=5)
+    height_label = tk.Label(root, text="Height:")
+    height_label.grid(row=5, column=0, sticky='w', padx=5, pady=5)
 
     height_entry = tk.Entry(root)
-    height_entry.grid(row=3, column=4, padx=5, pady=5)  
+    height_entry.grid(row=5, column=1, sticky='w', padx=5, pady=5)  
 
     # Initially hide the entries
     width_entry.grid_remove()
     height_entry.grid_remove()
 
     convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry))
-    convert_button.grid(row=4, columnspan=3, pady=10)
+    convert_button.grid(row=6, columnspan=3, pady=10)
 
     terminal = ScrolledText.ScrolledText(root, state='disabled', width=80, height=20, wrap='word', fg='white', bg='black')
-    terminal.grid(row=5, column=0, columnspan=3, padx=5, pady=5, sticky='ew')  
+    terminal.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
 
     progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
-    progress.grid(row=6, column=0, columnspan=3, padx=5, pady=5, sticky='ew')  
+    progress.grid(row=8, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
 
     file_progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
-    file_progress.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky='ew') 
+    file_progress.grid(row=9, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
+
 
     # Load last selected directories
     input_dir, output_dir = get_last_selected_dirs()
