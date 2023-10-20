@@ -4,10 +4,27 @@ This Python script allows users to convert images from `.jpg` to `.webp` format 
 
 ## Dependencies
 
+- Python (3.6 or higher)
 - Pillow (for image processing tasks)
 - tkinter (to create the GUI)
 - ttkthemes (to theme the tkinter GUI)
 - ScrolledText (for the terminal widget within the GUI)
+
+## Installation
+
+1. Ensure you have Python 3.6 or higher installed on your machine.
+2. Clone the repository or download the script to your local machine.
+3. Install the required libraries using pip:
+
+```bash
+pip install Pillow ttkthemes
+```
+
+You can also install the dependencies from the `requirements.txt` file provided:
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Features
 
