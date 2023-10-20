@@ -176,13 +176,13 @@ def on_convert_click(input_label, output_label, terminal, progress, file_progres
         print_to_terminal(terminal, error_message)
         logging.error(error_message)
 
-def update_entry_visibility(resolution_choice, width_entry, height_entry):
+def update_entry_visibility(resolution_choice, dimension_frame):
     if resolution_choice.get() == "Custom":
-        width_entry.pack(side='left', expand=True, fill='x', padx=5, pady=5)  
-        height_entry.pack(side='left', expand=True, fill='x', padx=5, pady=5)  
+        dimension_frame.grid()
     else:
-        width_entry.pack_forget()  #
-        height_entry.pack_forget()  
+        dimension_frame.grid_remove()
+
+
 
 
 
@@ -219,10 +219,10 @@ def initialize_gui():
 
     resolution_choice = tk.StringVar(value="Automatically")
     auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically",
-                                command=lambda: update_entry_visibility(resolution_choice, width_entry, height_entry))
+                            command=lambda: update_entry_visibility(resolution_choice, dimension_frame))
     auto_radio.grid(row=2, columnspan=3, sticky='w', padx=20)
     custom_radio = tk.Radiobutton(root, text="Specify dimensions", variable=resolution_choice, value="Custom",
-                                  command=lambda: update_entry_visibility(resolution_choice, width_entry, height_entry))
+                              command=lambda: update_entry_visibility(resolution_choice, dimension_frame))
     custom_radio.grid(row=3, column=0, sticky='w', padx=20)
 
     dimension_frame = Frame(root)  
@@ -246,8 +246,7 @@ def initialize_gui():
     height_entry.pack(side='left', expand=True, fill='x')  
 
     # Initially hide the entries
-    width_entry.grid_remove()
-    height_entry.grid_remove()
+    dimension_frame.grid_remove()
 
     convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry))
     convert_button.grid(row=7, columnspan=5, pady=10)
@@ -271,6 +270,7 @@ def initialize_gui():
     if input_dir and output_dir:
         input_label.config(text=input_dir)
         output_label.config(text=output_dir)
+    resolution_choice.trace_add('write', lambda *args: update_entry_visibility(resolution_choice, dimension_frame))
 
     root.mainloop()
 
