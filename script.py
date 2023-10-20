@@ -9,6 +9,9 @@ import logging
 import tkinter.scrolledtext as ScrolledText
 import threading
 
+stop_event = threading.Event()
+is_converting = False
+
 def setup_logging():
     logging.basicConfig(filename='errors.log', level=logging.ERROR, 
                         format='%(asctime)s - %(levelname)s - %(message)s')
@@ -125,7 +128,8 @@ def print_to_terminal(terminal, message):
     terminal.config(state='disabled')
     terminal.see(tk.END)
 
-def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height, progress_text):
+def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height, progress_text, stop_button):
+    global is_converting
     try:
         os.makedirs(output_dir, exist_ok=True)
         files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
@@ -133,6 +137,9 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
         processed_files = 0
 
         for file in files:
+            if stop_event.is_set():
+                print_to_terminal(terminal, "Process was stopped by an unknown force.")
+                return  # Exit the function if stop_event is set
             input_path = os.path.join(input_dir, file)
             output_path = os.path.join(output_dir, os.path.splitext(file)[0] + '.webp')
             processed_files += 1  
@@ -149,7 +156,7 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
                         resolutions = get_optimal_resolutions(img.size)
                         chosen_resolution = select_resolution(file, input_path, resolutions)
                         if chosen_resolution == 'SKIP':
-                            message = f"{file} was skipped by the user."
+                            message = f"{file} was skipped by an unknown force."
                             print(message)
                             print_to_terminal(terminal, message)
                             file_progress['value'] = 100  
@@ -171,21 +178,34 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
                 print_to_terminal(terminal, error_message)
                 logging.error(error_message)
                 file_progress['value'] = 100
+                stop_button.grid_remove()
 
     except Exception as e:
         error_message = f'An error occurred: {e}'
         print(error_message)
         print_to_terminal(terminal, error_message)
         logging.error(error_message)
+    finally: 
+        is_converting = False
 
 
-def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text):
+def on_stop_click():
+    stop_event.set()
+
+
+def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button):
+    global is_converting
+    if is_converting:
+        print_to_terminal(terminal, "A conversion process is already running.")
+        return
+    is_converting = True
     input_dir = input_label.cget("text")
     output_dir = output_label.cget("text")
     batch_mode = resolution_choice.get() == "Automatically"
 
     if input_dir and output_dir:
-        threading.Thread(target=convert_and_resize_images, args=(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text)).start()
+        stop_button.grid(row=10, columnspan=5, pady=10)
+        threading.Thread(target=convert_and_resize_images, args=(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button)).start()
 
     else:
         error_message = 'No directory selected. Exiting.'
@@ -271,7 +291,7 @@ def initialize_gui():
     image_count_label.grid(row=5, column=0, columnspan=5, pady=5, sticky='ew')
 
     convert_icon = ImageTk.PhotoImage(Image.open('icons/convert_icon.png'))
-    convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT, command=lambda: on_convert_click(input_label, output_label, terminal, file_progress, progress, resolution_choice, width_entry, height_entry, progress_text))
+    convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT, command=lambda: on_convert_click(input_label, output_label, terminal, file_progress, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button))  # Passed stop_button to the lambda function
     convert_button.grid(row=7, columnspan=5, pady=10)
 
     terminal = ScrolledText.ScrolledText(main_frame, state='disabled', width=80, height=20, wrap='word', fg='black', bg='white')
@@ -290,6 +310,10 @@ def initialize_gui():
         main_frame.grid_columnconfigure(col, weight=1)
     main_frame.grid_rowconfigure(6, weight=1)  
 
+    stop_icon = ImageTk.PhotoImage(Image.open('icons/stop_icon.png'))  
+    stop_button = tk.Button(root, text="Stop", image=stop_icon, compound=tk.LEFT, command=on_stop_click)
+    stop_button.grid(row=10, columnspan=5, pady=10)
+    stop_button.grid_remove()
 
     # Load last selected directories
     input_dir, output_dir = get_last_selected_dirs()
