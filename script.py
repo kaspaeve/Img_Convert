@@ -178,11 +178,12 @@ def on_convert_click(input_label, output_label, terminal, progress, file_progres
 
 def update_entry_visibility(resolution_choice, width_entry, height_entry):
     if resolution_choice.get() == "Custom":
-        width_entry.grid(row=4, column=1, sticky='w', padx=5, pady=5)  
-        height_entry.grid(row=5, column=1, sticky='w', padx=5, pady=5)  
+        width_entry.pack(side='left', expand=True, fill='x', padx=5, pady=5)  
+        height_entry.pack(side='left', expand=True, fill='x', padx=5, pady=5)  
     else:
-        width_entry.grid_remove()
-        height_entry.grid_remove()
+        width_entry.pack_forget()  #
+        height_entry.pack_forget()  
+
 
 
 def initialize_gui():
@@ -195,27 +196,26 @@ def initialize_gui():
     menu.add_cascade(label="Help", menu=help_menu)
     root.config(menu=menu)
 
-    main_frame = Frame(root, padding="10") 
+    main_frame = Frame(root, padding="10")
     main_frame.grid(sticky=(tk.E, tk.W, tk.N, tk.S), padx=10, pady=10)
 
-    input_frame = Frame(main_frame) 
+    input_frame = Frame(main_frame)
     input_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
 
     input_button = tk.Button(input_frame, text='Input Directory', command=lambda: update_directory_path(input_label, 'Input Directory', input_label, output_label))
-    input_button.grid(row=0, column=0)  
+    input_button.grid(row=0, column=0)
 
     input_label = tk.Label(input_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
-    input_label.grid(row=0, column=1, sticky='ew')  
+    input_label.grid(row=0, column=1, sticky='ew')
 
-    output_frame = Frame(root)  
+    output_frame = Frame(root)
     output_frame.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
 
     output_button = tk.Button(output_frame, text='Output Directory', command=lambda: update_directory_path(output_label, 'Output Directory', input_label, output_label))
-    output_button.grid(row=0, column=0) 
+    output_button.grid(row=0, column=0)
 
     output_label = tk.Label(output_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
-    output_label.grid(row=0, column=1, sticky='ew')  
-
+    output_label.grid(row=0, column=1, sticky='ew')
 
     resolution_choice = tk.StringVar(value="Automatically")
     auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically",
@@ -225,36 +225,46 @@ def initialize_gui():
                                   command=lambda: update_entry_visibility(resolution_choice, width_entry, height_entry))
     custom_radio.grid(row=3, column=0, sticky='w', padx=20)
 
-    width_label = tk.Label(root, text="Width:")
-    width_label.grid(row=4, column=0, sticky='w', padx=5, pady=5)
+    dimension_frame = Frame(root)  
+    dimension_frame.grid(row=4, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
 
-    width_entry = tk.Entry(root)
-    width_entry.grid(row=4, column=1, sticky='w', padx=5, pady=5)  
+    width_frame = Frame(dimension_frame)  
+    width_frame.pack(fill='x', padx=5, pady=5)  
 
-    height_label = tk.Label(root, text="Height:")
-    height_label.grid(row=5, column=0, sticky='w', padx=5, pady=5)
+    width_label = tk.Label(width_frame, text="Width:")  
+    width_label.pack(side='left') 
 
-    height_entry = tk.Entry(root)
-    height_entry.grid(row=5, column=1, sticky='w', padx=5, pady=5)  
+    width_entry = tk.Entry(width_frame)  
+    width_entry.pack(side='left', expand=True, fill='x')  
+    height_frame = Frame(dimension_frame)  
+    height_frame.pack(fill='x', padx=5, pady=5)  
+
+    height_label = tk.Label(height_frame, text="Height:")  
+    height_label.pack(side='left')  
+
+    height_entry = tk.Entry(height_frame)  
+    height_entry.pack(side='left', expand=True, fill='x')  
 
     # Initially hide the entries
     width_entry.grid_remove()
     height_entry.grid_remove()
 
     convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry))
-    convert_button.grid(row=6, columnspan=5, pady=10) 
+    convert_button.grid(row=7, columnspan=5, pady=10)
+
     terminal = ScrolledText.ScrolledText(main_frame, state='disabled', width=80, height=20, wrap='word', fg='black', bg='white')
-    terminal.grid(row=7, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
+    terminal.grid(row=6, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
 
     progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
-    progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
+    progress.grid(row=7, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
 
     file_progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
-    file_progress.grid(row=9, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
+    file_progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
 
     for col in range(5):
         main_frame.grid_columnconfigure(col, weight=1)
-    main_frame.grid_rowconfigure(7, weight=1)  
+    main_frame.grid_rowconfigure(6, weight=1)  # Make the terminal resizable
+
 
     # Load last selected directories
     input_dir, output_dir = get_last_selected_dirs()
