@@ -3,7 +3,7 @@ import json
 from PIL import Image, ImageTk, ExifTags
 import tkinter as tk
 from tkinter import filedialog, messagebox, Toplevel, Label, Button, Menu
-from tkinter.ttk import Frame, Progressbar, Separator 
+from tkinter.ttk import Frame, Progressbar
 from ttkthemes import ThemedTk
 import logging
 import tkinter.scrolledtext as ScrolledText
@@ -187,7 +187,7 @@ def update_entry_visibility(resolution_choice, dimension_frame):
 
 
 def initialize_gui():
-    root = ThemedTk(theme="equilux")
+    root = ThemedTk(theme="Breeze")
     root.title("Image Converter")
 
     menu = Menu(root)
@@ -202,7 +202,8 @@ def initialize_gui():
     input_frame = Frame(main_frame)
     input_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
 
-    input_button = tk.Button(input_frame, text='Input Directory', command=lambda: update_directory_path(input_label, 'Input Directory', input_label, output_label))
+    input_icon = ImageTk.PhotoImage(Image.open('icons/input_icon.png'))
+    input_button = tk.Button(input_frame, text='Input Directory', image=input_icon, compound=tk.LEFT, command=lambda: update_directory_path(input_label, 'Input Directory', input_label, output_label))
     input_button.grid(row=0, column=0)
 
     input_label = tk.Label(input_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
@@ -211,7 +212,8 @@ def initialize_gui():
     output_frame = Frame(root)
     output_frame.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
 
-    output_button = tk.Button(output_frame, text='Output Directory', command=lambda: update_directory_path(output_label, 'Output Directory', input_label, output_label))
+    output_icon = ImageTk.PhotoImage(Image.open('icons/output_icon.png'))
+    output_button = tk.Button(output_frame, text='Output Directory', image=output_icon, compound=tk.LEFT, command=lambda: update_directory_path(output_label, 'Output Directory', input_label, output_label))
     output_button.grid(row=0, column=0)
 
     output_label = tk.Label(output_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
@@ -227,6 +229,7 @@ def initialize_gui():
 
     dimension_frame = Frame(root)  
     dimension_frame.grid(row=4, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
+
 
     width_frame = Frame(dimension_frame)  
     width_frame.pack(fill='x', padx=5, pady=5)  
@@ -248,7 +251,8 @@ def initialize_gui():
     # Initially hide the entries
     dimension_frame.grid_remove()
 
-    convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry))
+    convert_icon = ImageTk.PhotoImage(Image.open('icons/convert_icon.png'))
+    convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT, command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry))
     convert_button.grid(row=7, columnspan=5, pady=10)
 
     terminal = ScrolledText.ScrolledText(main_frame, state='disabled', width=80, height=20, wrap='word', fg='black', bg='white')
