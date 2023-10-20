@@ -7,7 +7,7 @@ from tkinter.ttk import Frame, Progressbar
 from ttkthemes import ThemedTk
 import logging
 import tkinter.scrolledtext as ScrolledText
-
+import threading
 
 def setup_logging():
     logging.basicConfig(filename='errors.log', level=logging.ERROR, 
@@ -94,11 +94,21 @@ def get_last_selected_dirs():
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return None, None
 
-def update_directory_path(label, title, input_label, output_label):
+def update_image_count_label(output_dir, image_count_label):
+    try:
+        files = [f for f in os.listdir(output_dir) if f.endswith('.jpg')]
+        image_count = len(files)
+        image_count_label.config(text=f"{image_count} images currently selected in batch.")
+    except Exception as e:
+        logging.exception(e)
+
+def update_directory_path(label, title, input_label, output_label, image_count_label=None):
     dir_path = filedialog.askdirectory(title=title)
     if dir_path:
         label.config(text=dir_path)
         save_last_selected_dirs(input_label.cget("text"), output_label.cget("text"))
+        if image_count_label:
+            update_image_count_label(dir_path, image_count_label)
     return dir_path
 
 
@@ -115,7 +125,7 @@ def print_to_terminal(terminal, message):
     terminal.config(state='disabled')
     terminal.see(tk.END)
 
-def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height):
+def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height, progress_text):
     os.makedirs(output_dir, exist_ok=True)
     files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
     total_files = len(files)
@@ -124,6 +134,12 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
     for file in files:
         input_path = os.path.join(input_dir, file)
         output_path = os.path.join(output_dir, os.path.splitext(file)[0] + '.webp')
+        processed_files += 1  
+        progress_value = (processed_files / total_files) * 100
+        progress['value'] = progress_value
+        file_progress['value'] = 0
+        progress_text.config(text=f"{processed_files}/{total_files} - {progress_value:.0f}%")
+
 
         try:
             with Image.open(input_path) as img:
@@ -143,7 +159,6 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
 
                 resized_img = img.resize(chosen_resolution, Image.LANCZOS)
                 resized_img.save(output_path, 'WEBP')
-                processed_files += 1  
                 progress['value'] = (processed_files / total_files) * 100
                 file_progress['value'] = 0
                 message = f'{file} ({img.width}x{img.height}) converted to ({resized_img.width}x{resized_img.height}) processed successfully.'
@@ -157,20 +172,14 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
             logging.error(error_message)
             file_progress['value'] = 100
 
-def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry):
+def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text):
     input_dir = input_label.cget("text")
     output_dir = output_label.cget("text")
     batch_mode = resolution_choice.get() == "Automatically"
 
     if input_dir and output_dir:
-        try:
-            progress['value'] = 0  
-            file_progress['value'] = 0
-            convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get())
-        except Exception as e:
-            error_message = f'An error occurred: {e}'
-            print_to_terminal(terminal, error_message)
-            logging.error(error_message)
+        threading.Thread(target=convert_and_resize_images, args=(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text)).start()
+
     else:
         error_message = 'No directory selected. Exiting.'
         print_to_terminal(terminal, error_message)
@@ -222,10 +231,10 @@ def initialize_gui():
 
     resolution_choice = tk.StringVar(value="Automatically")
     auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically",
-                            command=lambda: update_entry_visibility(resolution_choice, dimension_frame))
+    command=lambda: update_entry_visibility(resolution_choice, dimension_frame))
     auto_radio.grid(row=2, columnspan=3, sticky='w', padx=20)
     custom_radio = tk.Radiobutton(root, text="Specify dimensions", variable=resolution_choice, value="Custom",
-                              command=lambda: update_entry_visibility(resolution_choice, dimension_frame))
+    command=lambda: update_entry_visibility(resolution_choice, dimension_frame))
     custom_radio.grid(row=3, column=0, sticky='w', padx=20)
 
     dimension_frame = Frame(root)  
@@ -251,23 +260,28 @@ def initialize_gui():
 
     # Initially hide the entries
     dimension_frame.grid_remove()
+    image_count_label = tk.Label(root, text="")
+    image_count_label.grid(row=5, column=0, columnspan=5, pady=5, sticky='ew')
 
     convert_icon = ImageTk.PhotoImage(Image.open('icons/convert_icon.png'))
-    convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT, command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry))
+    convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT, command=lambda: on_convert_click(input_label, output_label, terminal, file_progress, progress, resolution_choice, width_entry, height_entry, progress_text))
     convert_button.grid(row=7, columnspan=5, pady=10)
 
     terminal = ScrolledText.ScrolledText(main_frame, state='disabled', width=80, height=20, wrap='word', fg='black', bg='white')
     terminal.grid(row=6, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
 
     progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
-    progress.grid(row=7, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
+    progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew')  
+    progress_text = tk.Label(main_frame, text="")
+    progress_text.grid(row=9, column=0, columnspan=5, pady=5, sticky='ew') 
+
 
     file_progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
-    file_progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
+    file_progress.grid(row=7, column=0, columnspan=5, padx=5, pady=5, sticky='ew') 
 
     for col in range(5):
         main_frame.grid_columnconfigure(col, weight=1)
-    main_frame.grid_rowconfigure(6, weight=1)  # Make the terminal resizable
+    main_frame.grid_rowconfigure(6, weight=1)  
 
 
     # Load last selected directories
@@ -275,6 +289,8 @@ def initialize_gui():
     if input_dir and output_dir:
         input_label.config(text=input_dir)
         output_label.config(text=output_dir)
+        update_image_count_label(input_dir, image_count_label)  #
+
     resolution_choice.trace_add('write', lambda *args: update_entry_visibility(resolution_choice, dimension_frame))
 
     doc_icon = ImageTk.PhotoImage(Image.open('icons/document_icon.png'))
