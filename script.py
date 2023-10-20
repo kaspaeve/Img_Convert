@@ -189,6 +189,7 @@ def update_entry_visibility(resolution_choice, dimension_frame):
 def initialize_gui():
     root = ThemedTk(theme="Breeze")
     root.title("Image Converter")
+    root.iconbitmap('icons/icon.ico')
 
     menu = Menu(root)
     help_menu = Menu(menu, tearoff=0)
