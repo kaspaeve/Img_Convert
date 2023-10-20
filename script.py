@@ -115,7 +115,7 @@ def print_to_terminal(terminal, message):
     terminal.config(state='disabled')
     terminal.see(tk.END)
 
-def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, use_recommended_dimensions):
+def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height):
     os.makedirs(output_dir, exist_ok=True)
     files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
     total_files = len(files)
@@ -157,17 +157,16 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
             logging.error(error_message)
             file_progress['value'] = 100
 
-def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice):
+def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry):
     input_dir = input_label.cget("text")
     output_dir = output_label.cget("text")
     batch_mode = resolution_choice.get() == "Automatically"
 
     if input_dir and output_dir:
-        batch_mode = resolution_choice.get() == "Automatically"
         try:
             progress['value'] = 0  
             file_progress['value'] = 0
-            convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get())
+            convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get())
         except Exception as e:
             error_message = f'An error occurred: {e}'
             print_to_terminal(terminal, error_message)
@@ -177,41 +176,73 @@ def on_convert_click(input_label, output_label, terminal, progress, file_progres
         print_to_terminal(terminal, error_message)
         logging.error(error_message)
 
+def update_entry_visibility(resolution_choice, width_entry, height_entry):
+    if resolution_choice.get() == "Custom":
+        width_entry.grid(row=3, column=2, padx=5, pady=5)  
+        height_entry.grid(row=3, column=4, padx=5, pady=5)  
+    else:
+        width_entry.grid_remove()
+        height_entry.grid_remove()
+
+
 def initialize_gui():
     root = ThemedTk(theme="equilux")
     root.title("Image Converter")
 
     input_frame = tk.Frame(root)
-    input_frame.pack(fill='x', padx=5, pady=5)
+    input_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)  
+
     input_button = tk.Button(input_frame, text='Input Directory', command=lambda: update_directory_path(input_label, 'Input Directory', input_label, output_label))
-    input_button.pack(side='left')
+    input_button.grid(row=0, column=0)  
+
     input_label = tk.Label(input_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
-    input_label.pack(fill='x', expand=True)
+    input_label.grid(row=0, column=1, sticky='ew')  
 
     output_frame = tk.Frame(root)
-    output_frame.pack(fill='x', padx=5, pady=5)
+    output_frame.grid(row=1, column=0, sticky='ew', padx=5, pady=5)  
+
     output_button = tk.Button(output_frame, text='Output Directory', command=lambda: update_directory_path(output_label, 'Output Directory', input_label, output_label))
-    output_button.pack(side='left')
+    output_button.grid(row=0, column=0) 
+
     output_label = tk.Label(output_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
-    output_label.pack(fill='x', expand=True)
+    output_label.grid(row=0, column=1, sticky='ew')  
+
 
     resolution_choice = tk.StringVar(value="Automatically")
-    auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically")
-    auto_radio.pack(anchor='w', padx=20)
-    custom_radio = tk.Radiobutton(root, text="Specify dimensions", variable=resolution_choice, value="Custom")
-    custom_radio.pack(anchor='w', padx=20)
+    auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically",
+                                command=lambda: update_entry_visibility(resolution_choice, width_entry, height_entry))
+    auto_radio.grid(row=2, columnspan=3, sticky='w', padx=20)
+    custom_radio = tk.Radiobutton(root, text="Specify dimensions", variable=resolution_choice, value="Custom",
+                                  command=lambda: update_entry_visibility(resolution_choice, width_entry, height_entry))
+    custom_radio.grid(row=3, column=0, sticky='w', padx=20)
 
-    convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice))
-    convert_button.pack(pady=10)
+    width_label = tk.Label(root, text="Width:")  
+    width_label.grid(row=3, column=1, sticky='e', padx=5, pady=5)
+
+    width_entry = tk.Entry(root)
+    width_entry.grid(row=3, column=2, padx=5, pady=5)  
+
+    height_label = tk.Label(root, text="Height:")  
+    height_label.grid(row=3, column=3, sticky='e', padx=5, pady=5)
+
+    height_entry = tk.Entry(root)
+    height_entry.grid(row=3, column=4, padx=5, pady=5)  
+
+    # Initially hide the entries
+    width_entry.grid_remove()
+    height_entry.grid_remove()
+
+    convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry))
+    convert_button.grid(row=4, columnspan=3, pady=10)
 
     terminal = ScrolledText.ScrolledText(root, state='disabled', width=80, height=20, wrap='word', fg='white', bg='black')
-    terminal.pack()
+    terminal.grid(row=5, column=0, columnspan=3, padx=5, pady=5, sticky='ew')  
 
     progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
-    progress.pack(pady=5)
+    progress.grid(row=6, column=0, columnspan=3, padx=5, pady=5, sticky='ew')  
 
     file_progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
-    file_progress.pack(pady=5)
+    file_progress.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky='ew') 
 
     # Load last selected directories
     input_dir, output_dir = get_last_selected_dirs()
@@ -223,5 +254,9 @@ def initialize_gui():
 
 
 if __name__ == '__main__':
-    setup_logging()
-    initialize_gui()
+    try:
+        setup_logging()
+        initialize_gui()
+    except Exception as e:
+        print(f"Exception: {e}")
+        logging.exception(e)
