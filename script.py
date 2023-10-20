@@ -126,51 +126,58 @@ def print_to_terminal(terminal, message):
     terminal.see(tk.END)
 
 def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height, progress_text):
-    os.makedirs(output_dir, exist_ok=True)
-    files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
-    total_files = len(files)
-    processed_files = 0
+    try:
+        os.makedirs(output_dir, exist_ok=True)
+        files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
+        total_files = len(files)
+        processed_files = 0
 
-    for file in files:
-        input_path = os.path.join(input_dir, file)
-        output_path = os.path.join(output_dir, os.path.splitext(file)[0] + '.webp')
-        processed_files += 1  
-        progress_value = (processed_files / total_files) * 100
-        progress['value'] = progress_value
-        file_progress['value'] = 0
-        progress_text.config(text=f"{processed_files}/{total_files} - {progress_value:.0f}%")
+        for file in files:
+            input_path = os.path.join(input_dir, file)
+            output_path = os.path.join(output_dir, os.path.splitext(file)[0] + '.webp')
+            processed_files += 1  
+            progress_value = (processed_files / total_files) * 100
+            progress['value'] = progress_value
+            file_progress['value'] = 0
+            progress_text.config(text=f"{processed_files}/{total_files} - {progress_value:.0f}%")
 
+            try:
+                with Image.open(input_path) as img:
+                    img = correct_image_orientation(img)  
 
-        try:
-            with Image.open(input_path) as img:
-                img = correct_image_orientation(img)  
+                    if not batch_mode:
+                        resolutions = get_optimal_resolutions(img.size)
+                        chosen_resolution = select_resolution(file, input_path, resolutions)
+                        if chosen_resolution == 'SKIP':
+                            message = f"{file} was skipped by the user."
+                            print(message)
+                            print_to_terminal(terminal, message)
+                            file_progress['value'] = 100  
+                            continue
+                    else:
+                        chosen_resolution = get_optimal_resolutions(img.size)[0]
 
-                if not batch_mode:
-                    resolutions = get_optimal_resolutions(img.size)
-                    chosen_resolution = select_resolution(file, input_path, resolutions)
-                    if chosen_resolution == 'SKIP':
-                        message = f"{file} was skipped by the user."
-                        print(message)
-                        print_to_terminal(terminal, message)
-                        file_progress['value'] = 100  
-                        continue
-                else:
-                    chosen_resolution = get_optimal_resolutions(img.size)[0]
-
-                resized_img = img.resize(chosen_resolution, Image.LANCZOS)
-                resized_img.save(output_path, 'WEBP')
-                progress['value'] = (processed_files / total_files) * 100
-                file_progress['value'] = 0
-                message = f'{file} ({img.width}x{img.height}) converted to ({resized_img.width}x{resized_img.height}) processed successfully.'
-                print(message)
-                print_to_terminal(terminal, message)
+                    resized_img = img.resize(chosen_resolution, Image.LANCZOS)
+                    resized_img.save(output_path, 'WEBP')
+                    progress['value'] = (processed_files / total_files) * 100
+                    file_progress['value'] = 0
+                    message = f'{file} ({img.width}x{img.height}) converted to ({resized_img.width}x{resized_img.height}) processed successfully.'
+                    print(message)
+                    print_to_terminal(terminal, message)
+                    file_progress['value'] = 100
+            except IOError as e:
+                error_message = f'Error processing {file}: {e}'
+                print(error_message)
+                print_to_terminal(terminal, error_message)
+                logging.error(error_message)
                 file_progress['value'] = 100
-        except IOError as e:
-            error_message = f'Error processing {file}: {e}'
-            print(error_message)
-            print_to_terminal(terminal, error_message)
-            logging.error(error_message)
-            file_progress['value'] = 100
+
+    except Exception as e:
+        error_message = f'An error occurred: {e}'
+        print(error_message)
+        print_to_terminal(terminal, error_message)
+        logging.error(error_message)
+
 
 def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text):
     input_dir = input_label.cget("text")
@@ -273,11 +280,11 @@ def initialize_gui():
     progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
     progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew')  
     progress_text = tk.Label(main_frame, text="")
-    progress_text.grid(row=9, column=0, columnspan=5, pady=5, sticky='ew') 
+    progress_text.grid(row=7, column=0, columnspan=5, pady=5, sticky='ew') 
 
 
     file_progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
-    file_progress.grid(row=7, column=0, columnspan=5, padx=5, pady=5, sticky='ew') 
+    file_progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew') 
 
     for col in range(5):
         main_frame.grid_columnconfigure(col, weight=1)
