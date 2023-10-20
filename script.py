@@ -11,36 +11,43 @@ import threading
 
 stop_event = threading.Event()
 is_converting = False
+current_file_index = 0
 
-def setup_logging():
-    logging.basicConfig(filename='errors.log', level=logging.ERROR, 
-                        format='%(asctime)s - %(levelname)s - %(message)s')
+class ImageConverter:
+    def __init__(self):
+        self.stop_event = threading.Event()
+        self.is_converting = False
+        self.current_file_index = 0
 
-def correct_image_orientation(img):
-    try:
-        for orientation in ExifTags.TAGS.keys():
-            if ExifTags.TAGS[orientation] == 'Orientation':
-                break
-        exif_data = img._getexif()
-        if exif_data is not None and orientation in exif_data:
-            orientation_value = exif_data[orientation]
-            if orientation_value == 2:
-                img = img.transpose(Image.FLIP_LEFT_RIGHT)
-            elif orientation_value == 3:
-                img = img.rotate(180)
-            elif orientation_value == 4:
-                img = img.rotate(180).transpose(Image.FLIP_LEFT_RIGHT)
-            elif orientation_value == 5:
-                img = img.rotate(-90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
-            elif orientation_value == 6:
-                img = img.rotate(-90, expand=True)
-            elif orientation_value == 7:
-                img = img.rotate(90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
-            elif orientation_value == 8:
-                img = img.rotate(90, expand=True)
-    except (AttributeError, KeyError, IndexError):
-        pass
-    return img
+    def setup_logging(self):
+        logging.basicConfig(filename='errors.log', level=logging.ERROR, 
+                            format='%(asctime)s - %(levelname)s - %(message)s')
+
+    def correct_image_orientation(self, img):
+        try:
+            for orientation in ExifTags.TAGS.keys():
+                if ExifTags.TAGS[orientation] == 'Orientation':
+                    break
+            exif_data = img._getexif()
+            if exif_data is not None and orientation in exif_data:
+                orientation_value = exif_data[orientation]
+                if orientation_value == 2:
+                    img = img.transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation_value == 3:
+                    img = img.rotate(180)
+                elif orientation_value == 4:
+                    img = img.rotate(180).transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation_value == 5:
+                    img = img.rotate(-90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation_value == 6:
+                    img = img.rotate(-90, expand=True)
+                elif orientation_value == 7:
+                    img = img.rotate(90, expand=True).transpose(Image.FLIP_LEFT_RIGHT)
+                elif orientation_value == 8:
+                    img = img.rotate(90, expand=True)
+        except (AttributeError, KeyError, IndexError) as e:
+            logging.exception(e)  
+        return img
 
 def get_optimal_resolutions(original_size):
     common_widths = [1920, 1440, 1280]
@@ -128,18 +135,22 @@ def print_to_terminal(terminal, message):
     terminal.config(state='disabled')
     terminal.see(tk.END)
 
-def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height, progress_text, stop_button):
-    global is_converting
+def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height, progress_text, stop_button):
+    global is_converting, current_file_index
+    if is_converting:
+        print_to_terminal(terminal, "A conversion process is already running.")
+        return
     try:
         os.makedirs(output_dir, exist_ok=True)
         files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
         total_files = len(files)
-        processed_files = 0
+        processed_files = current_file_index  
 
-        for file in files:
+        for i, file in enumerate(files[current_file_index:], start=current_file_index):  
+            current_file_index = i
             if stop_event.is_set():
                 print_to_terminal(terminal, "Process was stopped by an unknown force.")
-                return  # Exit the function if stop_event is set
+                return  
             input_path = os.path.join(input_dir, file)
             output_path = os.path.join(output_dir, os.path.splitext(file)[0] + '.webp')
             processed_files += 1  
@@ -150,7 +161,7 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
 
             try:
                 with Image.open(input_path) as img:
-                    img = correct_image_orientation(img)  
+                    img = converter.correct_image_orientation(img)  
 
                     if not batch_mode:
                         resolutions = get_optimal_resolutions(img.size)
@@ -190,10 +201,32 @@ def convert_and_resize_images(input_dir, output_dir, batch_mode, terminal, progr
 
 
 def on_stop_click():
+    global is_converting
     stop_event.set()
+    is_converting = False
+
+def on_resume_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button):
+    global converter 
+    global is_converting
+    if is_converting:
+        print_to_terminal(terminal, "A conversion process is already running.")
+        return
+    is_converting = True
+    input_dir = input_label.cget("text")
+    output_dir = output_label.cget("text")
+    batch_mode = resolution_choice.get() == "Automatically"
+
+    if input_dir and output_dir:
+        stop_button.grid(row=10, columnspan=5, pady=10)
+        threading.Thread(target=convert_and_resize_images, args=(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button)).start()
+    else:
+        error_message = 'No directory selected. Exiting.'
+        print_to_terminal(terminal, error_message)
+        logging.error(error_message)
 
 
 def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button):
+    global converter 
     global is_converting
     if is_converting:
         print_to_terminal(terminal, "A conversion process is already running.")
@@ -223,6 +256,10 @@ def update_entry_visibility(resolution_choice, dimension_frame):
 
 
 def initialize_gui():
+    global converter  
+    converter = ImageConverter() 
+    converter.setup_logging() 
+
     root = ThemedTk(theme="Breeze")
     root.title("Image Converter")
     root.iconbitmap('icons/icon.ico')
@@ -291,7 +328,9 @@ def initialize_gui():
     image_count_label.grid(row=5, column=0, columnspan=5, pady=5, sticky='ew')
 
     convert_icon = ImageTk.PhotoImage(Image.open('icons/convert_icon.png'))
-    convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT, command=lambda: on_convert_click(input_label, output_label, terminal, file_progress, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button))  # Passed stop_button to the lambda function
+    convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT,
+                               command=lambda: on_convert_click(converter, input_label, output_label, terminal, file_progress, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button))
+
     convert_button.grid(row=7, columnspan=5, pady=10)
 
     terminal = ScrolledText.ScrolledText(main_frame, state='disabled', width=80, height=20, wrap='word', fg='black', bg='white')
@@ -310,10 +349,18 @@ def initialize_gui():
         main_frame.grid_columnconfigure(col, weight=1)
     main_frame.grid_rowconfigure(6, weight=1)  
 
-    stop_icon = ImageTk.PhotoImage(Image.open('icons/stop_icon.png'))  
-    stop_button = tk.Button(root, text="Stop", image=stop_icon, compound=tk.LEFT, command=on_stop_click)
-    stop_button.grid(row=10, columnspan=5, pady=10)
-    stop_button.grid_remove()
+    button_frame = Frame(root)  #
+    button_frame.grid(row=10, columnspan=5, pady=10)
+
+    stop_icon = ImageTk.PhotoImage(Image.open('icons/stop_icon.png'))
+    stop_button = tk.Button(button_frame, text="Stop", image=stop_icon, compound=tk.LEFT, command=on_stop_click)
+    stop_button.grid(row=0, column=0, padx=5)  #
+    stop_button.grid_remove()  
+
+    resume_icon = ImageTk.PhotoImage(Image.open('icons/resume_icon.png'))  
+    resume_button = tk.Button(button_frame, text="Resume", image=resume_icon, compound=tk.LEFT, command=lambda: on_resume_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button))
+    resume_button.grid(row=0, column=1, padx=5)  
+    
 
     # Load last selected directories
     input_dir, output_dir = get_last_selected_dirs()
@@ -335,7 +382,6 @@ def open_documentation():
 
 if __name__ == '__main__':
     try:
-        setup_logging()
         initialize_gui()
     except Exception as e:
         print(f"Exception: {e}")
