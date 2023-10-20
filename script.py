@@ -2,8 +2,8 @@ import os
 import json
 from PIL import Image, ImageTk, ExifTags
 import tkinter as tk
-from tkinter import filedialog, messagebox, Toplevel, Label, Button
-from tkinter.ttk import Progressbar
+from tkinter import filedialog, messagebox, Toplevel, Label, Button, Menu
+from tkinter.ttk import Progressbar, Separator, Frame
 from ttkthemes import ThemedTk
 import logging
 import tkinter.scrolledtext as ScrolledText
@@ -189,8 +189,17 @@ def initialize_gui():
     root = ThemedTk(theme="equilux")
     root.title("Image Converter")
 
-    input_frame = tk.Frame(root)
-    input_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)  
+    menu = Menu(root)
+    help_menu = Menu(menu, tearoff=0)
+    help_menu.add_command(label="Documentation", command=open_documentation)
+    menu.add_cascade(label="Help", menu=help_menu)
+    root.config(menu=menu)
+
+    main_frame = Frame(root, padding="10")
+    main_frame.grid(sticky=(tk.E, tk.W, tk.N, tk.S), padx=10, pady=10)
+
+    input_frame = Frame(main_frame)
+    input_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
 
     input_button = tk.Button(input_frame, text='Input Directory', command=lambda: update_directory_path(input_label, 'Input Directory', input_label, output_label))
     input_button.grid(row=0, column=0)  
@@ -233,17 +242,19 @@ def initialize_gui():
     height_entry.grid_remove()
 
     convert_button = tk.Button(root, text="Convert", command=lambda: on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry))
-    convert_button.grid(row=6, columnspan=3, pady=10)
+    convert_button.grid(row=6, columnspan=5, pady=10) 
+    terminal = ScrolledText.ScrolledText(main_frame, state='disabled', width=80, height=20, wrap='word', fg='black', bg='white')
+    terminal.grid(row=7, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
 
-    terminal = ScrolledText.ScrolledText(root, state='disabled', width=80, height=20, wrap='word', fg='white', bg='black')
-    terminal.grid(row=7, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
+    progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
+    progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
 
-    progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
-    progress.grid(row=8, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
+    file_progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
+    file_progress.grid(row=9, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
 
-    file_progress = Progressbar(root, orient='horizontal', length=400, mode='determinate')
-    file_progress.grid(row=9, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
-
+    for col in range(5):
+        main_frame.grid_columnconfigure(col, weight=1)
+    main_frame.grid_rowconfigure(7, weight=1)  
 
     # Load last selected directories
     input_dir, output_dir = get_last_selected_dirs()
@@ -253,6 +264,9 @@ def initialize_gui():
 
     root.mainloop()
 
+def open_documentation():
+    # Open your documentation file or webpage
+    pass
 
 if __name__ == '__main__':
     try:
