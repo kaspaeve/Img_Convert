@@ -15,9 +15,9 @@ current_file_index = 0
 
 class ImageConverter:
     def __init__(self):
-        self.stop_event = threading.Event()
         self.is_converting = False
         self.current_file_index = 0
+        self.stop_event = threading.Event()
 
     def setup_logging(self):
         logging.basicConfig(filename='errors.log', level=logging.ERROR, 
@@ -136,21 +136,20 @@ def print_to_terminal(terminal, message):
     terminal.see(tk.END)
 
 def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height, progress_text, stop_button):
-    global is_converting, current_file_index
-    if is_converting:
+    if converter.is_converting:
         print_to_terminal(terminal, "A conversion process is already running.")
         return
     try:
         os.makedirs(output_dir, exist_ok=True)
         files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
         total_files = len(files)
-        processed_files = current_file_index  
+        processed_files = converter.current_file_index  
 
-        for i, file in enumerate(files[current_file_index:], start=current_file_index):  
-            current_file_index = i
-            if stop_event.is_set():
+        for i, file in enumerate(files[converter.current_file_index:], start=converter.current_file_index):  
+            converter.current_file_index = i
+            if converter.stop_event.is_set():
                 print_to_terminal(terminal, "Process was stopped by an unknown force.")
-                return  
+                return 
             input_path = os.path.join(input_dir, file)
             output_path = os.path.join(output_dir, os.path.splitext(file)[0] + '.webp')
             processed_files += 1  
@@ -197,53 +196,50 @@ def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, term
         print_to_terminal(terminal, error_message)
         logging.error(error_message)
     finally: 
-        is_converting = False
+        converter.is_converting = False
 
 
-def on_stop_click():
-    global is_converting
-    stop_event.set()
-    is_converting = False
-
-def on_resume_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button):
-    global converter 
-    global is_converting
-    if is_converting:
-        print_to_terminal(terminal, "A conversion process is already running.")
-        return
-    is_converting = True
-    input_dir = input_label.cget("text")
-    output_dir = output_label.cget("text")
-    batch_mode = resolution_choice.get() == "Automatically"
-
-    if input_dir and output_dir:
-        stop_button.grid(row=10, columnspan=5, pady=10)
-        threading.Thread(target=convert_and_resize_images, args=(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button)).start()
-    else:
-        error_message = 'No directory selected. Exiting.'
-        print_to_terminal(terminal, error_message)
-        logging.error(error_message)
-
+def on_stop_click(converter):
+    converter.is_converting = False
 
 def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button):
     global converter 
-    global is_converting
-    if is_converting:
+    if converter.is_converting:
         print_to_terminal(terminal, "A conversion process is already running.")
         return
-    is_converting = True
+    converter.is_converting = True
     input_dir = input_label.cget("text")
     output_dir = output_label.cget("text")
     batch_mode = resolution_choice.get() == "Automatically"
 
     if input_dir and output_dir:
         stop_button.grid(row=10, columnspan=5, pady=10)
-        threading.Thread(target=convert_and_resize_images, args=(input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button)).start()
+        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button)).start()
 
     else:
         error_message = 'No directory selected. Exiting.'
         print_to_terminal(terminal, error_message)
         logging.error(error_message)
+
+def on_resume_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button):
+    global converter 
+    if converter.is_converting:
+        print_to_terminal(terminal, "A conversion process is already running.")
+        return
+    converter.is_converting = True
+    input_dir = input_label.cget("text")
+    output_dir = output_label.cget("text")
+    batch_mode = resolution_choice.get() == "Automatically"
+
+    if input_dir and output_dir:
+        stop_button.grid(row=10, columnspan=5, pady=10)
+        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button)).start()
+
+    else:
+        error_message = 'No directory selected. Exiting.'
+        print_to_terminal(terminal, error_message)
+        logging.error(error_message)
+
 
 def update_entry_visibility(resolution_choice, dimension_frame):
     if resolution_choice.get() == "Custom":
@@ -251,13 +247,8 @@ def update_entry_visibility(resolution_choice, dimension_frame):
     else:
         dimension_frame.grid_remove()
 
-
-
-
-
 def initialize_gui():
     global converter  
-    converter = ImageConverter() 
     converter.setup_logging() 
 
     root = ThemedTk(theme="Breeze")
@@ -353,7 +344,7 @@ def initialize_gui():
     button_frame.grid(row=10, columnspan=5, pady=10)
 
     stop_icon = ImageTk.PhotoImage(Image.open('icons/stop_icon.png'))
-    stop_button = tk.Button(button_frame, text="Stop", image=stop_icon, compound=tk.LEFT, command=on_stop_click)
+    stop_button = tk.Button(button_frame, text="Stop", image=stop_icon, compound=tk.LEFT, command=lambda: on_stop_click(converter))
     stop_button.grid(row=0, column=0, padx=5)  #
     stop_button.grid_remove()  
 
@@ -382,6 +373,7 @@ def open_documentation():
 
 if __name__ == '__main__':
     try:
+        converter = ImageConverter() 
         initialize_gui()
     except Exception as e:
         print(f"Exception: {e}")
