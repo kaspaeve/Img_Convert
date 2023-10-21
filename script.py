@@ -368,7 +368,7 @@ def initialize_gui():
     root.mainloop()
 
 def open_documentation():
-    # Open your documentation file or webpage
+    # open for future documentation
     pass
 
 if __name__ == '__main__':
