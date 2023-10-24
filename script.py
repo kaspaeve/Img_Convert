@@ -14,10 +14,11 @@ is_converting = False
 current_file_index = 0
 
 class ImageConverter:
-    def __init__(self):
+    def __init__(self, config):
         self.is_converting = False
         self.current_file_index = 0
         self.stop_event = threading.Event()
+        self.stats = ConversionStats(config)
 
     def setup_logging(self):
         logging.basicConfig(filename='errors.log', level=logging.ERROR, 
@@ -48,6 +49,37 @@ class ImageConverter:
         except (AttributeError, KeyError, IndexError) as e:
             logging.exception(e)  
         return img
+
+import json
+
+class ConversionStats:
+    def __init__(self, config):
+        self.total_files_converted = config.get('total_files_converted', 0)
+        self.total_space_saved = config.get('total_space_saved', 0)  # in bytes
+
+    def update_stats(self, old_size, new_size):
+        self.total_files_converted += 1
+        self.total_space_saved += old_size - new_size
+
+    def get_stats(self):
+        return {
+            'total_files_converted': self.total_files_converted,
+            'total_space_saved': self.total_space_saved
+        }
+
+
+    def load_stats(self):
+        try:
+            with open('config.json', 'r') as file:
+                data = json.load(file)
+                self.total_files_converted = data['total_files_converted']
+                self.total_space_saved = data['total_space_saved']
+        except FileNotFoundError:
+            pass  # File doesn't exist yet, this is the first run.
+        except json.JSONDecodeError:
+            print("Could not decode the stats file. Starting with fresh stats.")
+
+
 
 def get_optimal_resolutions(original_size):
     common_widths = [1920, 1440, 1280]
@@ -92,17 +124,40 @@ def select_resolution(image_name, img_path, resolutions):
 
     return selected_resolution
 
-def save_last_selected_dirs(input_dir, output_dir):
-    with open('config.json', 'w') as f:
-        json.dump({'input_dir': input_dir, 'output_dir': output_dir}, f)
+def save_last_selected_dirs(input_dir, output_dir, converter):
+    config = {
+        'input_dir': input_dir,
+        'output_dir': output_dir,
+        'total_files_converted': converter.total_files_converted,
+        'total_space_saved': converter.total_space_saved,
+    }
+    try:
+        with open('config.json', 'w') as file:
+            json.dump(config, file)
+    except Exception as e:
+        logging.exception(e)
+
+
 
 def get_last_selected_dirs():
     try:
-        with open('config.json', 'r') as f:
-            dirs = json.load(f)
-            return dirs['input_dir'], dirs['output_dir']
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        return None, None
+        with open('config.json', 'r') as file:
+            data = json.load(file)
+            input_dir = data.get('input_dir', '')
+            output_dir = data.get('output_dir', '')
+            config = {
+                'total_files_converted': data.get('total_files_converted', 0),
+                'total_space_saved': data.get('total_space_saved', 0),
+            }
+            return input_dir, output_dir, config
+    except FileNotFoundError:
+        print("Config file not found. Starting with fresh directories and config.")
+        return '', '', {'total_files_converted': 0, 'total_space_saved': 0}
+    except json.JSONDecodeError:
+        print("Could not decode the config file. Starting with fresh directories and config.")
+        return '', '', {'total_files_converted': 0, 'total_space_saved': 0}
+
+
 
 def update_image_count_label(output_dir, image_count_label):
     try:
@@ -116,7 +171,7 @@ def update_directory_path(label, title, input_label, output_label, image_count_l
     dir_path = filedialog.askdirectory(title=title)
     if dir_path:
         label.config(text=dir_path)
-        save_last_selected_dirs(input_label.cget("text"), output_label.cget("text"))
+        save_last_selected_dirs(input_label.cget("text"), output_label.cget("text"), converter)
         if image_count_label:
             update_image_count_label(dir_path, image_count_label)
     return dir_path
@@ -135,18 +190,19 @@ def print_to_terminal(terminal, message):
     terminal.config(state='disabled')
     terminal.see(tk.END)
 
-def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice, custom_width, custom_height, progress_text, stop_button):
+def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, terminal, progress,  resolution_choice, custom_width, custom_height, progress_text, stop_button, root):  # Added root as an argument
     if converter.is_converting:
         print_to_terminal(terminal, "A conversion process is already running.")
         return
+    converter.is_converting = True
     try:
         os.makedirs(output_dir, exist_ok=True)
         files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
         total_files = len(files)
-        processed_files = converter.current_file_index  
+        processed_files = 0  
 
-        for i, file in enumerate(files[converter.current_file_index:], start=converter.current_file_index):  
-            converter.current_file_index = i
+        for i, file in enumerate(files): 
+            converter.current_file_index = i  
             if converter.stop_event.is_set():
                 print_to_terminal(terminal, "Process was stopped by an unknown force.")
                 return 
@@ -155,9 +211,10 @@ def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, term
             processed_files += 1  
             progress_value = (processed_files / total_files) * 100
             progress['value'] = progress_value
-            file_progress['value'] = 0
+            
             progress_text.config(text=f"{processed_files}/{total_files} - {progress_value:.0f}%")
-
+            root.update_idletasks()  
+            old_size = os.path.getsize(input_path)
             try:
                 with Image.open(input_path) as img:
                     img = converter.correct_image_orientation(img)  
@@ -169,25 +226,28 @@ def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, term
                             message = f"{file} was skipped by an unknown force."
                             print(message)
                             print_to_terminal(terminal, message)
-                            file_progress['value'] = 100  
+                            
                             continue
                     else:
                         chosen_resolution = get_optimal_resolutions(img.size)[0]
 
                     resized_img = img.resize(chosen_resolution, Image.LANCZOS)
                     resized_img.save(output_path, 'WEBP')
-                    progress['value'] = (processed_files / total_files) * 100
-                    file_progress['value'] = 0
+                    new_size = os.path.getsize(output_path)
+                    converter.stats.update_stats(old_size, new_size)
+                    progress['value'] = (processed_files / total_files) * 100 
+                    root.update_idletasks()
+                    
                     message = f'{file} ({img.width}x{img.height}) converted to ({resized_img.width}x{resized_img.height}) processed successfully.'
                     print(message)
                     print_to_terminal(terminal, message)
-                    file_progress['value'] = 100
+                    
             except IOError as e:
                 error_message = f'Error processing {file}: {e}'
                 print(error_message)
                 print_to_terminal(terminal, error_message)
                 logging.error(error_message)
-                file_progress['value'] = 100
+                
                 stop_button.grid_remove()
 
     except Exception as e:
@@ -197,49 +257,69 @@ def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, term
         logging.error(error_message)
     finally: 
         converter.is_converting = False
+        stop_button.grid_remove() 
+        resume_button.grid_remove()
 
 
 def on_stop_click(converter):
     converter.is_converting = False
 
-def on_convert_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button):
-    global converter 
+def on_convert_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root):  # Added root argument
     if converter.is_converting:
         print_to_terminal(terminal, "A conversion process is already running.")
         return
-    converter.is_converting = True
+    input_dir = input_label.cget("text")
+    output_dir = output_label.cget("text")
+    save_last_selected_dirs(input_dir, output_dir, converter.stats)  
+    batch_mode = resolution_choice.get() == "Automatically"
+
+    if input_dir and output_dir:
+        stop_button.grid(row=10, columnspan=5, pady=10)
+        resume_button.grid(row=10, columnspan=5, pady=10)
+        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button, root)).start()  # Included root in args
+
+    else:
+        error_message = 'No directory selected. Exiting.'
+        print_to_terminal(terminal, error_message)
+        logging.error(error_message)
+    
+
+def on_resume_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root):  # Added root argument
+    if converter.is_converting:
+        print_to_terminal(terminal, "A conversion process is already running.")
+        return
     input_dir = input_label.cget("text")
     output_dir = output_label.cget("text")
     batch_mode = resolution_choice.get() == "Automatically"
 
     if input_dir and output_dir:
         stop_button.grid(row=10, columnspan=5, pady=10)
-        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button)).start()
+        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button, root)).start()  # Included root in args
 
     else:
         error_message = 'No directory selected. Exiting.'
         print_to_terminal(terminal, error_message)
         logging.error(error_message)
 
-def on_resume_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button):
-    global converter 
-    if converter.is_converting:
-        print_to_terminal(terminal, "A conversion process is already running.")
-        return
-    converter.is_converting = True
-    input_dir = input_label.cget("text")
-    output_dir = output_label.cget("text")
-    batch_mode = resolution_choice.get() == "Automatically"
 
-    if input_dir and output_dir:
-        stop_button.grid(row=10, columnspan=5, pady=10)
-        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, file_progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button)).start()
 
-    else:
-        error_message = 'No directory selected. Exiting.'
-        print_to_terminal(terminal, error_message)
-        logging.error(error_message)
+def show_about_window(converter):
+    about_window = Toplevel()
+    about_window.title("About")
 
+    author_label = Label(about_window, text="Author: Austin Scheller")
+    author_label.pack(pady=10)
+
+    email_label = Label(about_window, text="Email: austinscheller1@gmail.com")
+    email_label.pack(pady=10)
+
+    files_label = Label(about_window, text=f"Total Files Converted: {converter.stats.total_files_converted}")
+    files_label.pack(pady=10)
+
+    space_saved_label = Label(about_window, text=f"Space Saved: {converter.stats.total_space_saved / (1024 * 1024):.2f} MB")
+    space_saved_label.pack(pady=10)
+
+    about_window.mainloop()
 
 def update_entry_visibility(resolution_choice, dimension_frame):
     if resolution_choice.get() == "Custom":
@@ -249,6 +329,9 @@ def update_entry_visibility(resolution_choice, dimension_frame):
 
 def initialize_gui():
     global converter  
+    global resume_button 
+    input_dir, output_dir, config = get_last_selected_dirs()
+    converter = ImageConverter(config) 
     converter.setup_logging() 
 
     root = ThemedTk(theme="Breeze")
@@ -260,6 +343,10 @@ def initialize_gui():
     help_menu.add_command(label="Documentation", command=open_documentation)
     menu.add_cascade(label="Help", menu=help_menu)
     root.config(menu=menu)
+
+    about_menu = Menu(menu, tearoff=0)
+    about_menu.add_command(label="About", command=lambda: show_about_window(converter))
+    menu.add_cascade(label="About", menu=about_menu)
 
     main_frame = Frame(root, padding="10")
     main_frame.grid(sticky=(tk.E, tk.W, tk.N, tk.S), padx=10, pady=10)
@@ -295,7 +382,6 @@ def initialize_gui():
     dimension_frame = Frame(root)  
     dimension_frame.grid(row=4, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
 
-
     width_frame = Frame(dimension_frame)  
     width_frame.pack(fill='x', padx=5, pady=5)  
 
@@ -313,14 +399,12 @@ def initialize_gui():
     height_entry = tk.Entry(height_frame)  
     height_entry.pack(side='left', expand=True, fill='x')  
 
-    # Initially hide the entries
-    dimension_frame.grid_remove()
     image_count_label = tk.Label(root, text="")
     image_count_label.grid(row=5, column=0, columnspan=5, pady=5, sticky='ew')
 
     convert_icon = ImageTk.PhotoImage(Image.open('icons/convert_icon.png'))
     convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT,
-                               command=lambda: on_convert_click(converter, input_label, output_label, terminal, file_progress, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button))
+                           command=lambda: on_convert_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root))  
 
     convert_button.grid(row=7, columnspan=5, pady=10)
 
@@ -331,30 +415,37 @@ def initialize_gui():
     progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew')  
     progress_text = tk.Label(main_frame, text="")
     progress_text.grid(row=7, column=0, columnspan=5, pady=5, sticky='ew') 
+    
 
-
-    file_progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
-    file_progress.grid(row=8, column=0, columnspan=5, padx=5, pady=5, sticky='ew') 
 
     for col in range(5):
         main_frame.grid_columnconfigure(col, weight=1)
     main_frame.grid_rowconfigure(6, weight=1)  
 
-    button_frame = Frame(root)  #
-    button_frame.grid(row=10, columnspan=5, pady=10)
+    button_frame = Frame(root)  
+    button_frame.grid(row=10, columnspan=5, pady=10)  
 
     stop_icon = ImageTk.PhotoImage(Image.open('icons/stop_icon.png'))
     stop_button = tk.Button(button_frame, text="Stop", image=stop_icon, compound=tk.LEFT, command=lambda: on_stop_click(converter))
-    stop_button.grid(row=0, column=0, padx=5)  #
-    stop_button.grid_remove()  
+    stop_button.grid(row=0, column=0, padx=5)  
 
-    resume_icon = ImageTk.PhotoImage(Image.open('icons/resume_icon.png'))  
-    resume_button = tk.Button(button_frame, text="Resume", image=resume_icon, compound=tk.LEFT, command=lambda: on_resume_click(input_label, output_label, terminal, progress, file_progress, resolution_choice, width_entry, height_entry, progress_text, stop_button))
-    resume_button.grid(row=0, column=1, padx=5)  
+    
+
+    resume_icon = ImageTk.PhotoImage(Image.open('icons/resume_icon.png'))
+    resume_button = tk.Button(button_frame, text="Resume", image=resume_icon, compound=tk.LEFT, 
+                              command=lambda: on_resume_click(converter, input_label, output_label, terminal, 
+                                                               progress, resolution_choice, width_entry, 
+                                                               height_entry, progress_text, stop_button, root))
+    resume_button.grid(row=0, column=1, padx=5)
+    resume_button.grid_remove()
+    stop_button.grid_remove()  
+    
+
+
     
 
     # Load last selected directories
-    input_dir, output_dir = get_last_selected_dirs()
+    nput_dir, output_dir, config = get_last_selected_dirs() 
     if input_dir and output_dir:
         input_label.config(text=input_dir)
         output_label.config(text=output_dir)
@@ -367,14 +458,17 @@ def initialize_gui():
 
     root.mainloop()
 
+
 def open_documentation():
     # open for future documentation
     pass
 
 if __name__ == '__main__':
     try:
-        converter = ImageConverter() 
+        input_dir, output_dir, config = get_last_selected_dirs()
+        converter = ImageConverter(config)  
         initialize_gui()
     except Exception as e:
         print(f"Exception: {e}")
         logging.exception(e)
+
