@@ -324,11 +324,11 @@ def show_about_window(converter):
     about_window = Toplevel()
     about_window.title("About")
     
-    frame = Frame(about_window)  # Removed padx and pady from here
-    frame.pack(fill='both', expand=True, padx=10, pady=10)  # Moved padx and pady to here
+    frame = Frame(about_window)  
+    frame.pack(fill='both', expand=True, padx=10, pady=10)  
 
-    author_label = Label(frame, text="Author: Austin Scheller", anchor='w', justify='left', width=50)  # Adjusted width
-    author_label.grid(sticky='w', row=0, column=0, padx=5, pady=5)  # Used grid instead of pack for better alignment
+    author_label = Label(frame, text="Author: Austin Scheller", anchor='w', justify='left', width=50)  
+    author_label.grid(sticky='w', row=0, column=0, padx=5, pady=5)  
 
     email_label = Label(frame, text="Email: austinscheller1@gmail.com", anchor='w', justify='left', width=50)
     email_label.grid(sticky='w', row=1, column=0, padx=5, pady=5)
@@ -402,7 +402,7 @@ def initialize_gui():
     output_label = tk.Label(input_frame, text=output_dir)  
     output_label.grid(row=0, column=4)
     output_label.grid_remove()
-    
+
     resolution_choice = tk.StringVar(value="Automatically")
     auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically",
     state='disabled')  
@@ -438,7 +438,7 @@ def initialize_gui():
 
     convert_icon = ImageTk.PhotoImage(Image.open('icons/convert_icon.png'))
     convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT,
-                           command=lambda: on_convert_click(converter, input_label_text, output_label_text, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root))  # change here
+                           command=lambda: on_convert_click(converter, input_label_text, output_label_text, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root))  
 
     convert_button.grid(row=7, columnspan=5, pady=10)
 
