@@ -9,6 +9,9 @@ import logging
 import tkinter.scrolledtext as ScrolledText
 import threading
 
+logging.basicConfig(filename='errors.log', level=logging.ERROR, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
 class ImageConverter:
     def __init__(self, config):
         self.is_converting = threading.Event()
@@ -75,7 +78,7 @@ class ConversionStats:
                 self.total_files_converted = data['total_files_converted']
                 self.total_space_saved = data['total_space_saved']
         except FileNotFoundError:
-            pass  # File doesn't exist yet, this is the first run.
+            pass  
         except json.JSONDecodeError:
             print("Could not decode the stats file. Starting with fresh stats.")
 
@@ -167,11 +170,14 @@ def update_image_count_label(output_dir, image_count_label):
     except Exception as e:
         logging.exception(e)
 
-def update_directory_path(label, title, input_label, output_label, image_count_label=None):
+def update_directory_path(title, input_label_text, output_label_text, image_count_label=None):
     dir_path = filedialog.askdirectory(title=title)
     if dir_path:
-        label.config(text=dir_path)
-        save_last_selected_dirs(input_label.cget("text"), output_label.cget("text"), converter)
+        if title == 'Input Directory':
+            input_label_text.set(dir_path)  
+        else:
+            output_label_text.set(dir_path)  
+        save_last_selected_dirs(input_label_text.get(), output_label_text.get(), converter)  
         if image_count_label:
             update_image_count_label(dir_path, image_count_label)
     return dir_path
@@ -277,8 +283,8 @@ def on_convert_click(converter, input_label, output_label, terminal, progress, r
         return
     converter.stop_event.clear()
     converter.current_file_index = 0 
-    input_dir = input_label.cget("text")
-    output_dir = output_label.cget("text")
+    input_dir = input_label_text.get()
+    output_dir = output_label_text.get()
     save_last_selected_dirs(input_dir, output_dir, converter)
     batch_mode = resolution_choice.get() == "Automatically"
 
@@ -345,6 +351,8 @@ def update_entry_visibility(resolution_choice, dimension_frame):
 def initialize_gui():
     global converter  
     global resume_button 
+
+
     input_dir, output_dir, config = get_last_selected_dirs()
     converter = ImageConverter(config) 
     converter.setup_logging() 
@@ -352,6 +360,12 @@ def initialize_gui():
     root = ThemedTk(theme="Breeze")
     root.title("Image Converter")
     root.iconbitmap('icons/icon.ico')
+
+    global input_label_text 
+    global output_label_text
+
+    input_label_text = tk.StringVar() 
+    output_label_text = tk.StringVar()
 
     menu = Menu(root)
     help_menu = Menu(menu, tearoff=0)
@@ -370,32 +384,37 @@ def initialize_gui():
     input_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
 
     input_icon = ImageTk.PhotoImage(Image.open('icons/input_icon.png'))
-    input_button = tk.Button(input_frame, text='Input Directory', image=input_icon, compound=tk.LEFT, command=lambda: update_directory_path(input_label, 'Input Directory', input_label, output_label))
+    input_button = tk.Button(input_frame, image=input_icon, compound=tk.LEFT, command=lambda: update_directory_path('Input Directory', input_label_text, output_label_text))
     input_button.grid(row=0, column=0)
 
-    input_label = tk.Label(input_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
-    input_label.grid(row=0, column=1, sticky='ew')
+    input_label = tk.Label(input_frame, text=input_dir)
+    input_label.grid(row=0, column=1)
+    input_label.grid_remove()
 
-    output_frame = Frame(root)
-    output_frame.grid(row=1, column=0, sticky='ew', padx=5, pady=5)
+    arrow_label = tk.Label(input_frame, text=' > ', font=("Helvetica", 12))
+    arrow_label.grid(row=0, column=2)
 
     output_icon = ImageTk.PhotoImage(Image.open('icons/output_icon.png'))
-    output_button = tk.Button(output_frame, text='Output Directory', image=output_icon, compound=tk.LEFT, command=lambda: update_directory_path(output_label, 'Output Directory', input_label, output_label))
-    output_button.grid(row=0, column=0)
+    output_button = tk.Button(input_frame, image=output_icon, compound=tk.LEFT, command=lambda: update_directory_path('Output Directory', input_label_text, output_label_text))
+    output_button.grid(row=0, column=3)
+    
 
-    output_label = tk.Label(output_frame, text='Not selected', font=("Helvetica", 12), anchor='w')
-    output_label.grid(row=0, column=1, sticky='ew')
-
+    output_label = tk.Label(input_frame, text=output_dir)  
+    output_label.grid(row=0, column=4)
+    output_label.grid_remove()
+    
     resolution_choice = tk.StringVar(value="Automatically")
     auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically",
-    command=lambda: update_entry_visibility(resolution_choice, dimension_frame))
+    state='disabled')  
     auto_radio.grid(row=2, columnspan=3, sticky='w', padx=20)
     custom_radio = tk.Radiobutton(root, text="Specify dimensions", variable=resolution_choice, value="Custom",
-    command=lambda: update_entry_visibility(resolution_choice, dimension_frame))
+    state='disabled')  
     custom_radio.grid(row=3, column=0, sticky='w', padx=20)
 
     dimension_frame = Frame(root)  
     dimension_frame.grid(row=4, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
+    dimension_frame.grid_remove()  
+
 
     width_frame = Frame(dimension_frame)  
     width_frame.pack(fill='x', padx=5, pady=5)  
@@ -419,11 +438,11 @@ def initialize_gui():
 
     convert_icon = ImageTk.PhotoImage(Image.open('icons/convert_icon.png'))
     convert_button = tk.Button(root, text="Convert", image=convert_icon, compound=tk.LEFT,
-                           command=lambda: on_convert_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root))  
+                           command=lambda: on_convert_click(converter, input_label_text, output_label_text, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root))  # change here
 
     convert_button.grid(row=7, columnspan=5, pady=10)
 
-    terminal = ScrolledText.ScrolledText(main_frame, state='disabled', width=80, height=20, wrap='word', fg='black', bg='white')
+    terminal = ScrolledText.ScrolledText(main_frame, state='disabled', width=80, height=20, wrap='word', fg='green', bg='black', font=("Fixedsys", 12))
     terminal.grid(row=6, column=0, columnspan=5, padx=5, pady=5, sticky='ew')
 
     progress = Progressbar(main_frame, orient='horizontal', length=400, mode='determinate')
@@ -463,7 +482,12 @@ def initialize_gui():
     if input_dir and output_dir:
         input_label.config(text=input_dir)
         output_label.config(text=output_dir)
-        update_image_count_label(input_dir, image_count_label)  
+        update_image_count_label(input_dir, image_count_label)
+        print_to_terminal(terminal, f"Input Directory: {input_dir}")
+        print_to_terminal(terminal, f"Output Directory: {output_dir}")
+    else:
+        print_to_terminal(terminal, "Input Directory: Not selected")
+        print_to_terminal(terminal, "Output Directory: Not selected")
 
     resolution_choice.trace_add('write', lambda *args: update_entry_visibility(resolution_choice, dimension_frame))
 
@@ -482,5 +506,5 @@ if __name__ == '__main__':
         initialize_gui()
     except Exception as e:
         print(f"Exception: {e}")
-        logging.exception(e)
+        logging.exception(f"Exception: {e}")
 
