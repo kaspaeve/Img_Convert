@@ -9,16 +9,16 @@ import logging
 import tkinter.scrolledtext as ScrolledText
 import threading
 
-stop_event = threading.Event()
-is_converting = False
-current_file_index = 0
-
 class ImageConverter:
     def __init__(self, config):
-        self.is_converting = False
+        self.is_converting = threading.Event()
         self.current_file_index = 0
         self.stop_event = threading.Event()
         self.stats = ConversionStats(config)
+        self.load_stats()
+
+    def load_stats(self):
+        self.stats.load_stats()
 
     def setup_logging(self):
         logging.basicConfig(filename='errors.log', level=logging.ERROR, 
@@ -128,8 +128,8 @@ def save_last_selected_dirs(input_dir, output_dir, converter):
     config = {
         'input_dir': input_dir,
         'output_dir': output_dir,
-        'total_files_converted': converter.total_files_converted,
-        'total_space_saved': converter.total_space_saved,
+        'total_files_converted': converter.stats.total_files_converted,
+        'total_space_saved': converter.stats.total_space_saved,
     }
     try:
         with open('config.json', 'w') as file:
@@ -190,22 +190,24 @@ def print_to_terminal(terminal, message):
     terminal.config(state='disabled')
     terminal.see(tk.END)
 
-def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, terminal, progress,  resolution_choice, custom_width, custom_height, progress_text, stop_button, root):  # Added root as an argument
-    if converter.is_converting:
+def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, terminal, progress, resolution_choice, custom_width, custom_height, progress_text, stop_button, resume_button, root):
+    if converter.is_converting.is_set():
         print_to_terminal(terminal, "A conversion process is already running.")
         return
-    converter.is_converting = True
+    converter.is_converting.set()
     try:
+        
         os.makedirs(output_dir, exist_ok=True)
         files = [f for f in os.listdir(input_dir) if f.endswith('.jpg')]
         total_files = len(files)
         processed_files = 0  
 
-        for i, file in enumerate(files): 
-            converter.current_file_index = i  
-            if converter.stop_event.is_set():
-                print_to_terminal(terminal, "Process was stopped by an unknown force.")
-                return 
+        for i, file in enumerate(files[converter.current_file_index:], start=converter.current_file_index):
+            converter.current_file_index = i
+            if converter.stop_event.is_set() or not converter.is_converting.is_set():
+                print_to_terminal(terminal, "Process was stopped.")
+                converter.current_file_index = i
+                return
             input_path = os.path.join(input_dir, file)
             output_path = os.path.join(output_dir, os.path.splitext(file)[0] + '.webp')
             processed_files += 1  
@@ -256,27 +258,34 @@ def convert_and_resize_images(converter, input_dir, output_dir, batch_mode, term
         print_to_terminal(terminal, error_message)
         logging.error(error_message)
     finally: 
-        converter.is_converting = False
-        stop_button.grid_remove() 
+        save_last_selected_dirs(input_dir, output_dir, converter)
+        converter.is_converting.clear()
+        stop_button.grid_remove()
         resume_button.grid_remove()
+        logging.info("Conversion process stopped or completed.") 
 
 
 def on_stop_click(converter):
-    converter.is_converting = False
+    
+    converter.is_converting.clear()
+    converter.stop_event.set()
+    logging.info("Stop button clicked.")
 
-def on_convert_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root):  # Added root argument
-    if converter.is_converting:
+def on_convert_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root):
+    if converter.is_converting.is_set():
         print_to_terminal(terminal, "A conversion process is already running.")
         return
+    converter.stop_event.clear()
+    converter.current_file_index = 0 
     input_dir = input_label.cget("text")
     output_dir = output_label.cget("text")
-    save_last_selected_dirs(input_dir, output_dir, converter.stats)  
+    save_last_selected_dirs(input_dir, output_dir, converter)
     batch_mode = resolution_choice.get() == "Automatically"
 
     if input_dir and output_dir:
         stop_button.grid(row=10, columnspan=5, pady=10)
         resume_button.grid(row=10, columnspan=5, pady=10)
-        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button, root)).start()  # Included root in args
+        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button, resume_button, root)).start()
 
     else:
         error_message = 'No directory selected. Exiting.'
@@ -284,17 +293,19 @@ def on_convert_click(converter, input_label, output_label, terminal, progress, r
         logging.error(error_message)
     
 
-def on_resume_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root):  # Added root argument
-    if converter.is_converting:
+def on_resume_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root):
+    if converter.is_converting.is_set():
         print_to_terminal(terminal, "A conversion process is already running.")
         return
+    converter.stop_event.clear()
+    converter.is_converting.set()
     input_dir = input_label.cget("text")
     output_dir = output_label.cget("text")
     batch_mode = resolution_choice.get() == "Automatically"
 
     if input_dir and output_dir:
         stop_button.grid(row=10, columnspan=5, pady=10)
-        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button, root)).start()  # Included root in args
+        threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button, resume_button, root)).start()
 
     else:
         error_message = 'No directory selected. Exiting.'
@@ -306,20 +317,24 @@ def on_resume_click(converter, input_label, output_label, terminal, progress, re
 def show_about_window(converter):
     about_window = Toplevel()
     about_window.title("About")
+    
+    frame = Frame(about_window)  # Removed padx and pady from here
+    frame.pack(fill='both', expand=True, padx=10, pady=10)  # Moved padx and pady to here
 
-    author_label = Label(about_window, text="Author: Austin Scheller")
-    author_label.pack(pady=10)
+    author_label = Label(frame, text="Author: Austin Scheller", anchor='w', justify='left', width=50)  # Adjusted width
+    author_label.grid(sticky='w', row=0, column=0, padx=5, pady=5)  # Used grid instead of pack for better alignment
 
-    email_label = Label(about_window, text="Email: austinscheller1@gmail.com")
-    email_label.pack(pady=10)
+    email_label = Label(frame, text="Email: austinscheller1@gmail.com", anchor='w', justify='left', width=50)
+    email_label.grid(sticky='w', row=1, column=0, padx=5, pady=5)
 
-    files_label = Label(about_window, text=f"Total Files Converted: {converter.stats.total_files_converted}")
-    files_label.pack(pady=10)
+    files_label = Label(frame, text=f"Total Files Converted: {converter.stats.total_files_converted}", anchor='w', justify='left', width=50)
+    files_label.grid(sticky='w', row=2, column=0, padx=5, pady=5)
 
-    space_saved_label = Label(about_window, text=f"Space Saved: {converter.stats.total_space_saved / (1024 * 1024):.2f} MB")
-    space_saved_label.pack(pady=10)
+    space_saved_label = Label(frame, text=f"Space Saved: {converter.stats.total_space_saved / (1024 * 1024):.2f} MB", anchor='w', justify='left', width=50)
+    space_saved_label.grid(sticky='w', row=3, column=0, padx=5, pady=5)
 
     about_window.mainloop()
+
 
 def update_entry_visibility(resolution_choice, dimension_frame):
     if resolution_choice.get() == "Custom":
@@ -445,11 +460,10 @@ def initialize_gui():
     
 
     # Load last selected directories
-    nput_dir, output_dir, config = get_last_selected_dirs() 
     if input_dir and output_dir:
         input_label.config(text=input_dir)
         output_label.config(text=output_dir)
-        update_image_count_label(input_dir, image_count_label)  #
+        update_image_count_label(input_dir, image_count_label)  
 
     resolution_choice.trace_add('write', lambda *args: update_entry_visibility(resolution_choice, dimension_frame))
 
@@ -465,8 +479,6 @@ def open_documentation():
 
 if __name__ == '__main__':
     try:
-        input_dir, output_dir, config = get_last_selected_dirs()
-        converter = ImageConverter(config)  
         initialize_gui()
     except Exception as e:
         print(f"Exception: {e}")
