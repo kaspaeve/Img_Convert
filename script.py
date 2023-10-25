@@ -392,7 +392,7 @@ def initialize_gui():
     input_label.grid(row=0, column=1)
     
 
-    arrow_label = tk.Label(input_frame, text=' > ', font=("Helvetica", 12))
+    arrow_label = tk.Label(input_frame, text=' > ', font=("Helvetica", 14))
     arrow_label.grid(row=0, column=2)
 
     output_icon = ImageTk.PhotoImage(Image.open('icons/output_icon.png'))
@@ -434,7 +434,7 @@ def initialize_gui():
     height_entry = tk.Entry(height_frame)  
     height_entry.pack(side='left', expand=True, fill='x')  
 
-    image_count_label = tk.Label(root, text="")
+    image_count_label = tk.Label(root, text="", font=("Helvetica", 12))
     image_count_label.grid(row=5, column=0, columnspan=5, pady=5, sticky='ew')
 
     convert_icon = ImageTk.PhotoImage(Image.open('icons/convert_icon.png'))
