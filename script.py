@@ -277,7 +277,7 @@ def on_stop_click(converter):
     converter.stop_event.set()
     logging.info("Stop button clicked.")
 
-def on_convert_click(converter, input_label, output_label, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root):
+def on_convert_click(converter, input_label_text, output_label_text, terminal, progress, resolution_choice, width_entry, height_entry, progress_text, stop_button, root):
     if converter.is_converting.is_set():
         print_to_terminal(terminal, "A conversion process is already running.")
         return
@@ -292,7 +292,6 @@ def on_convert_click(converter, input_label, output_label, terminal, progress, r
         stop_button.grid(row=10, columnspan=5, pady=10)
         resume_button.grid(row=10, columnspan=5, pady=10)
         threading.Thread(target=convert_and_resize_images, args=(converter, input_dir, output_dir, batch_mode, terminal, progress, resolution_choice.get(), width_entry.get(), height_entry.get(), progress_text, stop_button, resume_button, root)).start()
-
     else:
         error_message = 'No directory selected. Exiting.'
         print_to_terminal(terminal, error_message)
@@ -389,7 +388,7 @@ def initialize_gui():
 
     input_label = tk.Label(input_frame, text=input_dir)
     input_label.grid(row=0, column=1)
-    input_label.grid_remove()
+    
 
     arrow_label = tk.Label(input_frame, text=' > ', font=("Helvetica", 12))
     arrow_label.grid(row=0, column=2)
@@ -401,7 +400,7 @@ def initialize_gui():
 
     output_label = tk.Label(input_frame, text=output_dir)  
     output_label.grid(row=0, column=4)
-    output_label.grid_remove()
+    
 
     resolution_choice = tk.StringVar(value="Automatically")
     auto_radio = tk.Radiobutton(root, text="Recommended dimensions", variable=resolution_choice, value="Automatically",
@@ -494,6 +493,8 @@ def initialize_gui():
     doc_icon = ImageTk.PhotoImage(Image.open('icons/document_icon.png'))
     help_menu.entryconfig('Documentation', image=doc_icon, compound=tk.LEFT)
 
+    input_label.grid_remove()
+    output_label.grid_remove()
     root.mainloop()
 
 
