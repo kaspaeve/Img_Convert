@@ -170,18 +170,20 @@ def update_image_count_label(output_dir, image_count_label):
     except Exception as e:
         logging.exception(e)
 
-def update_directory_path(title, input_label_text, output_label_text, image_count_label=None):
+def update_directory_path(title, input_label_text, output_label_text, terminal, image_count_label=None):  # add terminal argument here
     dir_path = filedialog.askdirectory(title=title)
     if dir_path:
         if title == 'Input Directory':
-            input_label_text.set(dir_path)  
+            input_label_text.set(dir_path)
         else:
-            output_label_text.set(dir_path)  
-        save_last_selected_dirs(input_label_text.get(), output_label_text.get(), converter)  
+            output_label_text.set(dir_path)
+        save_last_selected_dirs(input_label_text.get(), output_label_text.get(), converter)
         if image_count_label:
             update_image_count_label(dir_path, image_count_label)
-    return dir_path
 
+    
+        print_to_terminal(terminal, f"{title}: {dir_path}")
+    return dir_path
 
 def print_to_terminal(terminal, message):
     terminal.config(state='normal')
@@ -383,7 +385,7 @@ def initialize_gui():
     input_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
 
     input_icon = ImageTk.PhotoImage(Image.open('icons/input_icon.png'))
-    input_button = tk.Button(input_frame, image=input_icon, compound=tk.LEFT, command=lambda: update_directory_path('Input Directory', input_label_text, output_label_text))
+    input_button = tk.Button(input_frame, image=input_icon, compound=tk.LEFT, command=lambda: update_directory_path('Input Directory', input_label_text, output_label_text, terminal))
     input_button.grid(row=0, column=0)
 
     input_label = tk.Label(input_frame, text=input_dir)
@@ -394,7 +396,7 @@ def initialize_gui():
     arrow_label.grid(row=0, column=2)
 
     output_icon = ImageTk.PhotoImage(Image.open('icons/output_icon.png'))
-    output_button = tk.Button(input_frame, image=output_icon, compound=tk.LEFT, command=lambda: update_directory_path('Output Directory', input_label_text, output_label_text))
+    output_button = tk.Button(input_frame, image=output_icon, compound=tk.LEFT, command=lambda: update_directory_path('Output Directory', input_label_text, output_label_text, terminal))
     output_button.grid(row=0, column=3)
     
 
@@ -479,8 +481,8 @@ def initialize_gui():
 
     # Load last selected directories
     if input_dir and output_dir:
-        input_label.config(text=input_dir)
-        output_label.config(text=output_dir)
+        input_label_text.set(input_dir)
+        output_label_text.set(output_dir)
         update_image_count_label(input_dir, image_count_label)
         print_to_terminal(terminal, f"Input Directory: {input_dir}")
         print_to_terminal(terminal, f"Output Directory: {output_dir}")
